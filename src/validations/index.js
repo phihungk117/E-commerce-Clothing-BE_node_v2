@@ -50,6 +50,42 @@ const cartValidations = {
     validate
   ]
 };
+// ==================== Order Validation ====================
+const orderValidations = {
+  createOrder: [
+    body('customer_name')
+      .notEmpty()
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage('Customer name must be 2-100 characters'),
+    body('customer_phone')
+      .notEmpty()
+      .trim()
+      .matches(/^[0-9]{10,11}$/)
+      .withMessage('Valid phone number is required (10-11 digits)'),
+    body('shipping_address')
+      .notEmpty()
+      .trim()
+      .isLength({ min: 10, max: 500 })
+      .withMessage('Shipping address must be 10-500 characters'),
+    body('payment_method')
+      .isIn(['COD', 'VNPAY', 'MOMO', 'ZALOPAY', 'CREDIT_CARD', 'STRIPE'])
+      .withMessage('Invalid payment method'),
+    body('note')
+      .optional()
+      .isLength({ max: 1000 })
+      .withMessage('Note must not exceed 1000 characters'),
+    validate
+  ],
+  
+  orderId: [
+    param('orderId')
+      .isUUID(4)
+      .withMessage('Valid order ID is required'),
+    validate
+  ]
+};
+
 
 module.exports = {
   validate
