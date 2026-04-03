@@ -75,7 +75,7 @@ const getProducts = async (query) => {
             },
             {
                 model: Inventory,
-                as: 'inventory',
+                as: 'inventories',
                 attributes: ['on_hand', 'reserved']
             }
         ]
@@ -126,7 +126,9 @@ const getProducts = async (query) => {
     let products = rows;
     if (in_stock === 'true' || out_of_stock === 'true') {
         products = products.filter(product => {
-            const hasStock = product.variants?.some(v => v.inventory?.on_hand > 0);
+            const hasStock = product.variants?.some(
+                (v) => (v.inventories ?? []).some((inv) => (inv.on_hand ?? 0) > 0)
+            );
             if (in_stock === 'true' && out_of_stock === 'true') return true;
             if (in_stock === 'true') return hasStock;
             if (out_of_stock === 'true') return !hasStock;
@@ -210,7 +212,7 @@ const searchProducts = async (query) => {
         include: [
             { model: Color, as: 'color', attributes: ['color_id', 'name', 'hex_code'] },
             { model: Size, as: 'size', attributes: ['size_id', 'name'] },
-            { model: Inventory, as: 'inventory', attributes: ['on_hand', 'reserved'] }
+            { model: Inventory, as: 'inventories', attributes: ['on_hand', 'reserved'] }
         ]
     };
 
@@ -285,7 +287,7 @@ const getProductById = async (productId) => {
                     },
                     {
                         model: Inventory,
-                        as: 'inventory',
+                        as: 'inventories',
                         attributes: ['on_hand', 'reserved']
                     }
                 ]
