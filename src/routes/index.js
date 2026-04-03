@@ -42,7 +42,11 @@ router.use('/admin/users', adminUserRoute);
 // router.use('/coupons', couponRoute);
 // router.use('/cart', require('./cart.route'));
 // router.use('/orders', require('./order.route'));
-// router.use('/reviews', require('./review.route'));
+
+// --- Kích hoạt Review Routes ---
+router.use('/products/:productId/reviews', require('./review.route'));
+router.use('/reviews', require('./review.route'));
+
 // router.use('/wishlist', require('./wishlist.route'));
 // router.use('/shipping', require('./shipping.route'));
 // router.use('/payments', require('./payment.route'));
@@ -51,7 +55,10 @@ router.use('/admin/users', adminUserRoute);
 // router.use('/admin/promotions', adminPromotionRoute);
 // router.use('/admin/coupons', adminCouponRoute);
 // router.use('/admin/orders', adminOrderRoute);
-// router.use('/admin/reviews', adminReviewRoute);
+
+// --- Kích hoạt Admin Review Routes ---
+router.use('/admin/reviews', require('./admin/review.route'));
+
 // router.use('/admin/inventory', adminInventoryRoute);
 // router.use('/admin/dashboard', adminDashboardRoute);
 
