@@ -3,49 +3,37 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('ProductImages', {
-      image_id: {
+    await queryInterface.createTable('CartItems', {
+      cart_item_id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4
       },
-      product_id: {
+      cart_id: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
-          model: 'Products',
-          key: 'product_id'
+          model: 'Carts',
+          key: 'cart_id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      color_id: {
+      variant_id: {
         type: Sequelize.UUID,
-        allowNull: true,
+        allowNull: false,
         references: {
-          model: 'Colors',
-          key: 'color_id'
+          model: 'ProductVariants',
+          key: 'variant_id'
         },
         onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
+        onDelete: 'CASCADE'
       },
-      image_url: {
-        type: Sequelize.TEXT,
-        allowNull: false
-      },
-      alt_text: {
-        type: Sequelize.STRING(255),
-        allowNull: true,
-        comment: 'Mô tả ảnh cho SEO'
-      },
-      is_thumbnail: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false
-      },
-      sort_order: {
+      quantity: {
         type: Sequelize.INTEGER,
-        defaultValue: 0
+        allowNull: false,
+        defaultValue: 1
       },
       created_at: {
         allowNull: false,
@@ -58,16 +46,22 @@ module.exports = {
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       deleted_at: {
-        allowNull: true,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        allowNull: true
       }
     });
 
-    // Indexes
-    await queryInterface.addIndex('ProductImages', ['product_id']);
+    await queryInterface.addConstraint('CartItems', {
+      fields: ['cart_id', 'variant_id'],
+      type: 'unique',
+      name: 'unique_cart_variant'
+    });
+
+    await queryInterface.addIndex('CartItems', ['cart_id']);
+    await queryInterface.addIndex('CartItems', ['variant_id']);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ProductImages');
+    await queryInterface.dropTable('CartItems');
   }
 };

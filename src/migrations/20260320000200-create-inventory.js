@@ -3,48 +3,41 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('ProductImages', {
-      image_id: {
+    await queryInterface.createTable('Inventories', {
+      inventory_id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4
       },
-      product_id: {
+      warehouse_id: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
-          model: 'Products',
-          key: 'product_id'
+          model: 'Warehouses',
+          key: 'warehouse_id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      color_id: {
+      variant_id: {
         type: Sequelize.UUID,
-        allowNull: true,
+        allowNull: false,
         references: {
-          model: 'Colors',
-          key: 'color_id'
+          model: 'ProductVariants',
+          key: 'variant_id'
         },
         onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
+        onDelete: 'CASCADE'
       },
-      image_url: {
-        type: Sequelize.TEXT,
-        allowNull: false
-      },
-      alt_text: {
-        type: Sequelize.STRING(255),
-        allowNull: true,
-        comment: 'Mô tả ảnh cho SEO'
-      },
-      is_thumbnail: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false
-      },
-      sort_order: {
+      on_hand: {
         type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0
+      },
+      reserved: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
         defaultValue: 0
       },
       created_at: {
@@ -58,16 +51,22 @@ module.exports = {
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       deleted_at: {
-        allowNull: true,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        allowNull: true
       }
     });
 
-    // Indexes
-    await queryInterface.addIndex('ProductImages', ['product_id']);
+    await queryInterface.addConstraint('Inventories', {
+      fields: ['warehouse_id', 'variant_id'],
+      type: 'unique',
+      name: 'unique_inventory_per_warehouse_variant'
+    });
+
+    await queryInterface.addIndex('Inventories', ['warehouse_id']);
+    await queryInterface.addIndex('Inventories', ['variant_id']);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ProductImages');
+    await queryInterface.dropTable('Inventories');
   }
 };

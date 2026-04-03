@@ -3,49 +3,46 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('ProductImages', {
-      image_id: {
+    await queryInterface.createTable('Notifications', {
+      notification_id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4
       },
-      product_id: {
+      user_id: {
         type: Sequelize.UUID,
         allowNull: false,
         references: {
-          model: 'Products',
-          key: 'product_id'
+          model: 'Users',
+          key: 'user_id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      color_id: {
-        type: Sequelize.UUID,
-        allowNull: true,
-        references: {
-          model: 'Colors',
-          key: 'color_id'
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
-      },
-      image_url: {
-        type: Sequelize.TEXT,
+      title: {
+        type: Sequelize.STRING(255),
         allowNull: false
       },
-      alt_text: {
-        type: Sequelize.STRING(255),
-        allowNull: true,
-        comment: 'Mô tả ảnh cho SEO'
+      content: {
+        type: Sequelize.TEXT,
+        allowNull: true
       },
-      is_thumbnail: {
+      type: {
+        type: Sequelize.ENUM('ORDER', 'PROMOTION', 'SYSTEM', 'REVIEW'),
+        defaultValue: 'SYSTEM'
+      },
+      reference_type: {
+        type: Sequelize.STRING(50),
+        allowNull: true
+      },
+      reference_id: {
+        type: Sequelize.UUID,
+        allowNull: true
+      },
+      is_read: {
         type: Sequelize.BOOLEAN,
         defaultValue: false
-      },
-      sort_order: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
       },
       created_at: {
         allowNull: false,
@@ -56,18 +53,14 @@ module.exports = {
         allowNull: false,
         type: Sequelize.DATE,
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-      },
-      deleted_at: {
-        allowNull: true,
-        type: Sequelize.DATE
       }
     });
 
-    // Indexes
-    await queryInterface.addIndex('ProductImages', ['product_id']);
+    await queryInterface.addIndex('Notifications', ['user_id']);
+    await queryInterface.addIndex('Notifications', ['user_id', 'is_read']);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ProductImages');
+    await queryInterface.dropTable('Notifications');
   }
 };
