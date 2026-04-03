@@ -3,8 +3,8 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('ProductImages', {
-      image_id: {
+    await queryInterface.createTable('Reviews', {
+      review_id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
@@ -20,32 +20,40 @@ module.exports = {
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      color_id: {
+      user_id: {
         type: Sequelize.UUID,
-        allowNull: true,
+        allowNull: false,
         references: {
-          model: 'Colors',
-          key: 'color_id'
+          model: 'Users',
+          key: 'user_id'
         },
         onUpdate: 'CASCADE',
-        onDelete: 'SET NULL'
+        onDelete: 'CASCADE'
       },
-      image_url: {
-        type: Sequelize.TEXT,
-        allowNull: false
+      rating: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        validate: { min: 1, max: 5 }
       },
-      alt_text: {
+      title: {
         type: Sequelize.STRING(255),
-        allowNull: true,
-        comment: 'Mô tả ảnh cho SEO'
+        allowNull: true
       },
-      is_thumbnail: {
+      content: {
+        type: Sequelize.TEXT,
+        allowNull: true
+      },
+      images: {
+        type: Sequelize.JSON,
+        allowNull: true
+      },
+      is_verified: {
         type: Sequelize.BOOLEAN,
         defaultValue: false
       },
-      sort_order: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
+      status: {
+        type: Sequelize.ENUM('PENDING', 'APPROVED', 'REJECTED'),
+        defaultValue: 'PENDING'
       },
       created_at: {
         allowNull: false,
@@ -58,16 +66,21 @@ module.exports = {
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       deleted_at: {
-        allowNull: true,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        allowNull: true
       }
     });
 
-    // Indexes
-    await queryInterface.addIndex('ProductImages', ['product_id']);
+    await queryInterface.addIndex('Reviews', ['product_id']);
+    await queryInterface.addIndex('Reviews', ['user_id']);
+    await queryInterface.addConstraint('Reviews', {
+      fields: ['product_id', 'user_id'],
+      type: 'unique',
+      name: 'unique_product_user_review'
+    });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ProductImages');
+    await queryInterface.dropTable('Reviews');
   }
 };

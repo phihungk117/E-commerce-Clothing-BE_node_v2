@@ -3,49 +3,38 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('ProductImages', {
-      image_id: {
+    await queryInterface.createTable('Carts', {
+      cart_id: {
         allowNull: false,
         primaryKey: true,
         type: Sequelize.UUID,
         defaultValue: Sequelize.UUIDV4
       },
-      product_id: {
+      user_id: {
         type: Sequelize.UUID,
-        allowNull: false,
+        allowNull: true,
+        unique: true,
         references: {
-          model: 'Products',
-          key: 'product_id'
+          model: 'Users',
+          key: 'user_id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'CASCADE'
       },
-      color_id: {
+      session_id: {
+        type: Sequelize.STRING(255),
+        allowNull: true,
+        unique: true
+      },
+      coupon_id: {
         type: Sequelize.UUID,
         allowNull: true,
         references: {
-          model: 'Colors',
-          key: 'color_id'
+          model: 'Coupons',
+          key: 'coupon_id'
         },
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL'
-      },
-      image_url: {
-        type: Sequelize.TEXT,
-        allowNull: false
-      },
-      alt_text: {
-        type: Sequelize.STRING(255),
-        allowNull: true,
-        comment: 'Mô tả ảnh cho SEO'
-      },
-      is_thumbnail: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: false
-      },
-      sort_order: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0
       },
       created_at: {
         allowNull: false,
@@ -58,16 +47,13 @@ module.exports = {
         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       deleted_at: {
-        allowNull: true,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        allowNull: true
       }
     });
-
-    // Indexes
-    await queryInterface.addIndex('ProductImages', ['product_id']);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('ProductImages');
+    await queryInterface.dropTable('Carts');
   }
 };
