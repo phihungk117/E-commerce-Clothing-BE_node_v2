@@ -3,7 +3,7 @@ const {
     Model
 } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
-    class Category extends Model {
+    class Promotion extends Model {
         /**
          * Helper method for defining associations.
          * This method is not a part of Sequelize lifecycle.
@@ -11,49 +11,50 @@ module.exports = (sequelize, DataTypes) => {
          */
         static associate(models) {
             // define association here
-            Category.hasMany(models.Category, {
-                as: 'children',
-                foreignKey: 'parent_id'
-            });
-            Category.belongsTo(models.Category, {
-                as: 'parent',
-                foreignKey: 'parent_id'
-            });
-            Category.hasMany(models.Product, {
-                foreignKey: 'category_id',
+            Promotion.belongsToMany(models.Product, {
+                through: models.PromotionProduct,
+                foreignKey: 'promotion_id',
+                otherKey: 'product_id',
                 as: 'products'
             });
         }
     }
-    Category.init({
-        category_id: {
+    Promotion.init({
+        promotion_id: {
             type: DataTypes.UUID,
             primaryKey: true,
             defaultValue: DataTypes.UUIDV4,
             allowNull: false
         },
         name: {
-            type: DataTypes.STRING(100),
+            type: DataTypes.STRING(255),
             allowNull: false,
             validate: {
                 notEmpty: true
             }
         },
-        slug: {
-            type: DataTypes.STRING(150),
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true
+        },
+        discount_type: {
+            type: DataTypes.ENUM('percentage', 'fixed_amount'),
+            allowNull: false
+        },
+        discount_value: {
+            type: DataTypes.DECIMAL(15, 2),
             allowNull: false,
-            unique: true,
             validate: {
-                notEmpty: true
+                min: 0
             }
         },
-        parent_id: {
-            type: DataTypes.UUID,
-            allowNull: true
+        start_date: {
+            type: DataTypes.DATE,
+            allowNull: false
         },
-        image: {
-            type: DataTypes.STRING,
-            allowNull: true
+        end_date: {
+            type: DataTypes.DATE,
+            allowNull: false
         },
         is_active: {
             type: DataTypes.BOOLEAN,
@@ -61,8 +62,8 @@ module.exports = (sequelize, DataTypes) => {
         }
     }, {
         sequelize,
-        modelName: 'Category',
-        tableName: 'Categories',
+        modelName: 'Promotion',
+        tableName: 'Promotions',
         timestamps: true,
         underscored: true,
         paranoid: true,
@@ -70,5 +71,5 @@ module.exports = (sequelize, DataTypes) => {
         updatedAt: 'updated_at',
         deletedAt: 'deleted_at'
     });
-    return Category;
+    return Promotion;
 };
