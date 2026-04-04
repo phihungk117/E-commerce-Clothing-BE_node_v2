@@ -8,8 +8,18 @@ const swaggerSpec = require('./docs/swagger');
 const app = express();
 
 // CORS
+const allowedOrigins = (process.env.FRONT_END_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
 app.use(cors({
-  origin: process.env.FRONT_END_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
+    }
+  },
   credentials: true,
 }));
 
