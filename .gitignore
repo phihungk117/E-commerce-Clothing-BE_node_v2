@@ -117,5 +117,4 @@ Thumbs.db
 # Uploads
 uploads/
 public/uploads/
-
-.cursor/
+.cursor
