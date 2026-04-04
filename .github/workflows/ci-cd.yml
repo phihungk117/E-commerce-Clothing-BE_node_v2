@@ -85,3 +85,4 @@ jobs:
           fi
           curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
           echo "Render deploy hook triggered successfully."
+
