@@ -49,13 +49,20 @@ class CartService {
       throw new Error('Product variant not found');
     }
     
-    // Check existing item
+    // Check existing item (bao gồm cả item đã soft-delete)
     let cartItem = await CartItem.findOne({
-      where: { cart_id: cartId, variant_id: variantId }
+      where: { cart_id: cartId, variant_id: variantId },
+      paranoid: false,
     });
     
     if (cartItem) {
-      await cartItem.update({ quantity: cartItem.quantity + quantity });
+      // Nếu item đã soft-delete, restore lại để tránh lỗi unique key
+      if (cartItem.deleted_at) {
+        await cartItem.restore();
+        await cartItem.update({ quantity });
+      } else {
+        await cartItem.update({ quantity: cartItem.quantity + quantity });
+      }
     } else {
       cartItem = await CartItem.create({
         cart_id: cartId,
