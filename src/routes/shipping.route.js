@@ -1,64 +1,28 @@
 const express = require('express');
-const { ShippingMethod, ShippingZone, ShippingMethodZone } = require('../models');
+const shippingController = require('../controllers/shipping.controller');
+const { verifyToken, authorize } = require('../middlewares/auth.middleware');
+const { shippingValidations, paymentValidations } = require('../validations');
 
 const router = express.Router();
 
-router.get('/', async (_req, res, next) => {
-  try {
-    const methods = await ShippingMethod.findAll({ where: { is_active: true } });
-    return res.status(200).json({ data: methods, shippingMethods: methods });
-  } catch (error) {
-    return next(error);
-  }
-});
+// Public routes
+router.get('/', shippingController.getShippingMethods);
+router.get('/zones', shippingController.getShippingZones);
+router.get('/:methodId', shippingController.getShippingMethodById);
+router.post('/calculate', paymentValidations.calculateShipping, shippingController.calculateShipping);
 
-router.get('/zones', async (_req, res, next) => {
-  try {
-    const zones = await ShippingZone.findAll({ where: { is_active: true } });
-    return res.status(200).json({ data: zones, shippingZones: zones });
-  } catch (error) {
-    return next(error);
-  }
-});
+// Admin routes - methods
+router.post('/', verifyToken, authorize('ADMIN'), shippingValidations.create, shippingController.createShippingMethod);
+router.patch('/:methodId', verifyToken, authorize('ADMIN'), shippingValidations.methodId, shippingController.updateShippingMethod);
+router.delete('/:methodId', verifyToken, authorize('ADMIN'), shippingValidations.methodId, shippingController.deleteShippingMethod);
 
-router.post('/calculate', async (req, res, next) => {
-  try {
-    const { shipping_method_id, zone_id, subtotal = 0 } = req.body || {};
+// Admin routes - zones
+router.post('/zones', verifyToken, authorize('ADMIN'), shippingController.createShippingZone);
+router.patch('/zones/:zoneId', verifyToken, authorize('ADMIN'), shippingController.updateShippingZone);
+router.delete('/zones/:zoneId', verifyToken, authorize('ADMIN'), shippingController.deleteShippingZone);
 
-    const method = await ShippingMethod.findByPk(shipping_method_id);
-    if (!method || !method.is_active) {
-      return res.status(404).json({ message: 'Shipping method not found' });
-    }
-
-    if (zone_id) {
-      const zone = await ShippingZone.findByPk(zone_id);
-      if (!zone || !zone.is_active) {
-        return res.status(404).json({ message: 'Shipping zone not found' });
-      }
-
-      const supported = await ShippingMethodZone.findOne({
-        where: { shipping_method_id, shipping_zone_id: zone_id },
-      });
-      if (!supported) {
-        return res.status(400).json({ message: 'Shipping method is not available for selected zone' });
-      }
-    }
-
-    const subtotalNum = Number(subtotal || 0);
-    let fee = Number(method.base_fee || 0);
-    if (method.free_shipping_threshold && subtotalNum >= Number(method.free_shipping_threshold)) {
-      fee = 0;
-    }
-
-    return res.status(200).json({
-      data: {
-        fee,
-        estimated_days: method.estimated_days,
-      },
-    });
-  } catch (error) {
-    return next(error);
-  }
-});
+// Admin routes - method-zone fee mapping
+router.get('/:methodId/zones', verifyToken, authorize('ADMIN', 'STAFF'), shippingController.getMethodZones);
+router.post('/:methodId/zones', verifyToken, authorize('ADMIN'), shippingController.assignZoneToMethod);
 
 module.exports = router;

@@ -1,15 +1,27 @@
 const express = require('express');
 const paymentController = require('../controllers/payment.controller');
-const { verifyToken } = require('../middlewares/auth.middleware');
+const { verifyToken, authorize } = require('../middlewares/auth.middleware');
+const { paymentValidations } = require('../validations');
 
 const router = express.Router();
+const pc = paymentController;
 
-router.post('/create-url', verifyToken, (req, res, next) => paymentController.createPaymentUrl(req, res, next));
-router.get('/verify/:orderId', verifyToken, (req, res, next) => paymentController.verifyPayment(req, res, next));
-router.get('/order/:orderId', verifyToken, (req, res, next) => paymentController.getPaymentStatus(req, res, next));
-router.post('/refund/:orderId', verifyToken, (req, res, next) => paymentController.refundPayment(req, res, next));
+// Create payment URL for order (bind so class methods keep `this`)
+router.post('/create-url', verifyToken, paymentValidations.createUrl, pc.createPaymentUrl.bind(pc));
 
-router.post('/callback/:paymentMethod', (req, res, next) => paymentController.handleCallback(req, res, next));
-router.post('/webhook/:provider', (req, res, next) => paymentController.handleProviderWebhook(req, res, next));
+// Generic callback route (legacy)
+router.post('/callback/:paymentMethod', pc.handleCallback.bind(pc));
+
+// Provider-specific webhooks (recommended)
+router.post('/webhook/:provider', pc.handleProviderWebhook.bind(pc));
+
+// Admin refund endpoint
+router.post('/refund/:orderId', verifyToken, authorize('ADMIN', 'STAFF'), pc.refundPayment.bind(pc));
+
+// Verify payment status
+router.get('/verify/:orderId', verifyToken, pc.verifyPayment.bind(pc));
+
+// Get payment status by order
+router.get('/order/:orderId', verifyToken, pc.getPaymentStatus.bind(pc));
 
 module.exports = router;

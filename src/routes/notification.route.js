@@ -1,59 +1,26 @@
 const express = require('express');
-const notificationService = require('../services/notification.service');
-const { verifyToken } = require('../middlewares/auth.middleware');
+const { param } = require('express-validator');
+const notificationController = require('../controllers/notification.controller');
+const { verifyToken, authorize } = require('../middlewares/auth.middleware');
+const { notificationValidations, validate } = require('../validations');
 
 const router = express.Router();
 
-router.get('/', verifyToken, async (req, res, next) => {
-  try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 20);
+// User routes (protected)
+router.get('/', verifyToken, notificationController.getNotifications);
+router.get('/unread-count', verifyToken, notificationController.getUnreadCount);
+router.patch('/read-all', verifyToken, notificationController.markAllAsRead);
 
-    const result = await notificationService.getUserNotifications(req.user.user_id, {
-      page,
-      limit,
-    });
+// Notification ID validations
+const notificationIdValidation = [
+  param('notificationId').isUUID(4).withMessage('Valid notification ID is required'),
+  validate
+];
 
-    return res.status(200).json({ data: result.notifications, meta: result });
-  } catch (error) {
-    return next(error);
-  }
-});
+router.patch('/:notificationId/read', verifyToken, notificationIdValidation, notificationController.markAsRead);
+router.delete('/:notificationId', verifyToken, notificationIdValidation, notificationController.deleteNotification);
 
-router.get('/unread-count', verifyToken, async (req, res, next) => {
-  try {
-    const count = await notificationService.getUnreadCount(req.user.user_id);
-    return res.status(200).json({ data: { unread: count } });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-router.patch('/:notificationId/read', verifyToken, async (req, res, next) => {
-  try {
-    const notification = await notificationService.markAsRead(req.params.notificationId, req.user.user_id);
-    return res.status(200).json({ data: notification });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-router.patch('/read-all', verifyToken, async (req, res, next) => {
-  try {
-    const result = await notificationService.markAllAsRead(req.user.user_id);
-    return res.status(200).json({ data: result });
-  } catch (error) {
-    return next(error);
-  }
-});
-
-router.delete('/:notificationId', verifyToken, async (req, res, next) => {
-  try {
-    const result = await notificationService.deleteNotification(req.params.notificationId, req.user.user_id);
-    return res.status(200).json({ data: result });
-  } catch (error) {
-    return next(error);
-  }
-});
+// Admin: broadcast notification
+router.post('/broadcast', verifyToken, authorize('ADMIN'), notificationValidations.broadcast, notificationController.broadcastNotification);
 
 module.exports = router;

@@ -259,3 +259,102 @@ If you have any questions or suggestions, feel free to reach out:
 ---
 
 ⭐️ If you find this project useful, please consider giving it a star on GitHub!
+
+
+## 🚀 Deploy to Render (Docker)
+
+This repo already includes:
+
+- `Dockerfile`
+- `render.yaml`
+- `.github/workflows/backend-ci-cd.yml` (test + deploy hook)
+- `.github/workflows/render-migrate.yml` (manual DB migration)
+
+### 1) Create service on Render
+
+- Connect your GitHub repo to Render
+- Create a **Web Service** using this repo (or Blueprint from `render.yaml`)
+- Runtime: **Docker**
+- Health check: `/api/v1/health`
+
+### 2) Set environment variables on Render
+
+Required:
+
+- `NODE_ENV=production`
+- `PORT=10000`
+- `FRONT_END_URL=<your-frontend-domain>`
+- `DB_HOST`
+- `DB_PORT=3306`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME_PROD`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN=7d`
+
+Optional (only if feature is used):
+
+- SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+- Cloudinary: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- Google login: `GOOGLE_CLIENT_ID`
+
+### 3) Configure GitHub Actions deploy hook
+
+In Render Web Service settings, create/copy **Deploy Hook URL**.
+Then add GitHub Actions secret:
+
+- `RENDER_DEPLOY_HOOK_URL`
+
+Workflow `backend-ci-cd.yml` will:
+
+1. run tests on push/PR
+2. trigger Render deploy on push to `main`/`master`
+
+### 4) Run database migrations
+
+Use manual GitHub Actions workflow: **Render DB Migrate (manual)**.
+Add GitHub secrets used by migration job:
+
+- `DB_HOST`
+- `DB_PORT`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_NAME_PROD`
+
+Then run workflow `render-migrate.yml` via **Run workflow** button.
+
+
+## 🐳 Build & Push Docker Image to Registry
+
+This repo includes workflow:
+
+- `.github/workflows/docker-publish.yml`
+
+It will build from `Dockerfile` and push image to:
+
+- `ghcr.io/<github-username>/e-commerce-clothing-api`
+
+### Trigger
+
+- Push to `main`/`master`
+- Push Git tag `v*` (for release tags)
+- Manual run via **workflow_dispatch**
+
+### Required settings (GitHub)
+
+1. Repository -> **Settings** -> **Actions** -> **General**
+   - Workflow permissions: **Read and write permissions**
+2. Package visibility (GHCR): set package to private/public as needed.
+
+### Pull example
+
+```bash
+docker pull ghcr.io/<github-username>/e-commerce-clothing-api:latest
+```
+
+### Optional: Use Docker Hub instead of GHCR
+
+If you prefer Docker Hub, change login + image name and add secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`

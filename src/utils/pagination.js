@@ -1,28 +1,50 @@
-const toInt = (value, fallback) => {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+/**
+ * Pagination Utility
+ * Reusable pagination helper for all list APIs
+ */
+
+const getPagination = (query) => {
+    const page = Math.max(1, parseInt(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    return { page, limit, offset };
 };
 
-const getPagination = (query = {}) => {
-  const page = toInt(query.page, 1);
-  const limit = toInt(query.limit, 10);
-  const offset = (page - 1) * limit;
-
-  return {
-    page,
-    limit,
-    offset,
-  };
+const getPaginationMeta = (count, page, limit) => {
+    const totalPages = Math.ceil(count / limit);
+    return {
+        page,
+        limit,
+        total: count,
+        total_pages: totalPages,
+        has_next: page < totalPages,
+        has_prev: page > 1
+    };
 };
 
-const getPaginationMeta = (totalItems, page, limit) => ({
-  totalItems,
-  totalPages: Math.ceil(totalItems / limit),
-  currentPage: page,
-  itemsPerPage: limit,
-});
+const paginate = async (model, query, options = {}) => {
+    const { page, limit, offset } = getPagination(query);
+    const { where = {}, include = [], order = [['created_at', 'DESC']], attributes } = options;
+
+    const { count, rows } = await model.findAndCountAll({
+        where,
+        limit,
+        offset,
+        order,
+        include,
+        attributes,
+        distinct: true
+    });
+
+    return {
+        data: rows,
+        pagination: getPaginationMeta(count, page, limit)
+    };
+};
 
 module.exports = {
-  getPagination,
-  getPaginationMeta,
+    getPagination,
+    getPaginationMeta,
+    paginate
 };

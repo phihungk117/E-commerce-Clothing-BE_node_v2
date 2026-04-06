@@ -1,48 +1,55 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
-const { User } = require('../models');
 
-const verifyToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+const verifyToken = (req, res, next) => {
+    try {
+        // Get token from header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            const error = new Error('Access denied. No token provided.');
+            error.status = 401;
+            throw error;
+        }
 
-    if (!token) {
-      return res.status(401).json({ message: 'Unauthorized' });
+        const token = authHeader.split(' ')[1];
+
+        // Verify token
+        const decoded = jwt.verify(token, config.jwt.secret);
+
+        // Add user info to request
+        req.user = decoded;
+
+        next();
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            error.message = 'Token has expired';
+        } else if (error.name === 'JsonWebTokenError') {
+            error.message = 'Invalid token';
+        }
+        error.status = 401;
+        next(error);
     }
-
-    const decoded = jwt.verify(token, config.jwt.secret);
-    const user = await User.findByPk(decoded.user_id);
-
-    if (!user) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    req.user = {
-      user_id: user.user_id,
-      email: user.email,
-      role: user.role,
-    };
-
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
 };
 
-const authorize = (...roles) => (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+const authorize = (...roles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            const error = new Error('User not authenticated');
+            error.status = 401;
+            return next(error);
+        }
 
-  if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: 'Forbidden' });
-  }
+        if (!roles.includes(req.user.role)) {
+            const error = new Error('Access denied. You do not have permission to perform this action.');
+            error.status = 403;
+            return next(error);
+        }
 
-  next();
+        next();
+    };
 };
 
 module.exports = {
-  verifyToken,
-  authorize,
+    verifyToken,
+    authorize
 };
