@@ -152,7 +152,7 @@ class OrderService {
         { model: OrderItem, as: 'items' },
         { model: Payment, as: 'payment' },
         { model: Coupon, as: 'coupon' },
-        { model: User, as: 'user', attributes: ['user_id', 'email', 'full_name'] }
+        { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] }
       ]
     });
   }
@@ -250,7 +250,7 @@ class OrderService {
     const { count, rows } = await Order.findAndCountAll({
       where,
       include: [
-        { model: User, as: 'user', attributes: ['user_id', 'email', 'full_name', 'phone'] },
+        { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] },
         { model: OrderItem, as: 'items' },
         { model: Payment, as: 'payment' }
       ],
