@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const config = require('../config/config');
+const config = require('../../config/config');
 const transporter = nodemailer.createTransport(config.email.smtp);
 
 const sendResetPasswordEmail = async (to, token) => {
