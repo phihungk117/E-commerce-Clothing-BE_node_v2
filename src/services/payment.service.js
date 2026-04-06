@@ -1,6 +1,19 @@
 const crypto = require('crypto');
 const { Payment, Order } = require('../models');
 
+function buildVNPaySignedQuery(params, secret) {
+  const sortedKeys = Object.keys(params).sort();
+  const encodedPairs = sortedKeys.map((key) => {
+    const value = params[key] ?? '';
+    const encValue = encodeURIComponent(String(value)).replace(/%20/g, '+');
+    return `${key}=${encValue}`;
+  });
+  const signData = encodedPairs.join('&');
+  const hmac = crypto.createHmac('sha512', secret);
+  const secureHash = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
+  return { signData, secureHash };
+}
+
 // Base Payment Service
 class PaymentService {
   async createPaymentUrl(orderId, paymentMethod, callbackUrl) {
@@ -71,36 +84,28 @@ class PaymentService {
     const orderType = 'other';
 
     const vnp_Params = {
-      vnp_Amount: amount,
+      vnp_Version: '2.1.0',
       vnp_Command: 'pay',
-      vnp_CreateDate: createDate,
+      vnp_TmnCode: vnp_TmnCode,
+      vnp_Amount: amount,
       vnp_CurrCode: 'VND',
-      vnp_IpAddr: '127.0.0.1',
-      vnp_Locale: 'vn',
-      vnp_OrderInfo: `Thanh toán đơn hàng ${order.order_code}`,
-      vnp_OrderType: orderType,
-      vnp_ReturnUrl: vnp_ReturnUrl,
       vnp_TxnRef: orderId,
-      vnp_Version: '2.1.0'
+      vnp_OrderInfo: `Thanh toan don hang ${order.order_code}`,
+      vnp_OrderType: orderType,
+      vnp_Locale: 'vn',
+      vnp_ReturnUrl: vnp_ReturnUrl,
+      vnp_IpAddr: '127.0.0.1',
+      vnp_CreateDate: createDate
     };
 
-    // Sort and create hash
-    const sortedParams = Object.keys(vnp_Params).sort().reduce((obj, key) => {
-      obj[key] = vnp_Params[key];
-      return obj;
-    }, {});
+    const { secureHash } = buildVNPaySignedQuery(vnp_Params, vnp_HashSecret);
 
-    const signData = Object.entries(sortedParams)
-      .map(([key, value]) => `${key}=${value}`)
+    const sortedKeys = Object.keys(vnp_Params).sort();
+    const query = sortedKeys
+      .map((key) => `${key}=${encodeURIComponent(String(vnp_Params[key])).replace(/%20/g, '+')}`)
       .join('&');
 
-    const hmac = crypto.createHmac('sha512', vnp_HashSecret);
-    const signed = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
-    vnp_Params['vnp_SecureHash'] = signed;
-
-    const paymentUrl = vnp_Url + '?' + Object.entries(vnp_Params)
-      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-      .join('&');
+    const paymentUrl = `${vnp_Url}?${query}&vnp_SecureHash=${secureHash}`;
 
     return { paymentUrl, method: 'VNPAY' };
   }
@@ -134,14 +139,14 @@ class PaymentService {
     delete copy.vnp_SecureHash;
     delete copy.vnp_SecureHashType;
 
-    const signData = Object.entries(copy)
-      .filter(([key, value]) => key.startsWith('vnp_') && value !== undefined && value !== null)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => `${key}=${value}`)
-      .join('&');
+    const params = {};
+    for (const [key, value] of Object.entries(copy)) {
+      if (!key.startsWith('vnp_') || value === undefined || value === null) continue;
+      params[key] = value;
+    }
 
-    const expected = crypto.createHmac('sha512', secret).update(Buffer.from(signData, 'utf-8')).digest('hex');
-    return hash === expected;
+    const { secureHash } = buildVNPaySignedQuery(params, secret);
+    return hash === secureHash;
   }
 
   verifyProviderSignature(paymentMethod, callbackData, _headers, _rawPayload) {
