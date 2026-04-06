@@ -16,7 +16,7 @@ const validate = (req, res, next) => {
 const cartValidations = {
   addItem: [
     body('variant_id')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid variant ID is required'),
     body('quantity')
       .optional()
@@ -27,7 +27,7 @@ const cartValidations = {
   
   updateQuantity: [
     param('variantId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid variant ID is required'),
     body('quantity')
       .isInt({ min: 0, max: 999 })
@@ -37,7 +37,7 @@ const cartValidations = {
 
   variantId: [
     param('variantId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid variant ID is required'),
     validate
   ],
@@ -82,7 +82,7 @@ const orderValidations = {
   
   orderId: [
     param('orderId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid order ID is required'),
     validate
   ]
@@ -92,7 +92,7 @@ const orderValidations = {
 const reviewValidations = {
   createReview: [
     body('product_id')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid product ID is required'),
     body('rating')
       .isInt({ min: 1, max: 5 })
@@ -116,7 +116,7 @@ const reviewValidations = {
   
   updateReview: [
     param('reviewId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid review ID is required'),
     body('rating')
       .optional()
@@ -135,7 +135,7 @@ const reviewValidations = {
   
   reviewId: [
     param('reviewId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid review ID is required'),
     validate
   ]
@@ -145,14 +145,14 @@ const reviewValidations = {
 const wishlistValidations = {
   add: [
     body('product_id')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid product ID is required'),
     validate
   ],
   
   productId: [
     param('productId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid product ID is required'),
     validate
   ]
@@ -162,7 +162,7 @@ const wishlistValidations = {
 const paymentValidations = {
   createUrl: [
     body('orderId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid order ID is required'),
     body('paymentMethod')
       .isIn(['VNPAY'])
@@ -176,10 +176,10 @@ const paymentValidations = {
   
   calculateShipping: [
     body('methodId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid shipping method ID is required'),
     body('zoneId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid shipping zone ID is required'),
     validate
   ]
@@ -211,7 +211,7 @@ const shippingValidations = {
   
   methodId: [
     param('methodId')
-      .isUUID(4)
+      .isUUID()
       .withMessage('Valid method ID is required'),
     validate
   ]
