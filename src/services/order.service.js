@@ -1,4 +1,4 @@
-const { Order, OrderItem, Cart, CartItem, ProductVariant, Product, Payment, User, Coupon, Inventory, StockMovement, sequelize } = require('../models');
+const { Order, OrderItem, Cart, CartItem, ProductVariant, Product, ProductImage, Size, Color, Payment, User, Coupon, Inventory, StockMovement, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 class OrderService {
@@ -149,7 +149,25 @@ class OrderService {
     return Order.findOne({
       where,
       include: [
-        { model: OrderItem, as: 'items' },
+        {
+          model: OrderItem,
+          as: 'items',
+          include: [
+            {
+              model: ProductVariant,
+              as: 'variant',
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  include: [{ model: ProductImage, as: 'images' }]
+                },
+                { model: Size, as: 'size' },
+                { model: Color, as: 'color' }
+              ]
+            }
+          ]
+        },
         { model: Payment, as: 'payments' },
         { model: Coupon, as: 'coupon' },
         { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] }
@@ -164,7 +182,25 @@ class OrderService {
     const { count, rows } = await Order.findAndCountAll({
       where,
       include: [
-        { model: OrderItem, as: 'items' },
+        {
+          model: OrderItem,
+          as: 'items',
+          include: [
+            {
+              model: ProductVariant,
+              as: 'variant',
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  include: [{ model: ProductImage, as: 'images' }]
+                },
+                { model: Size, as: 'size' },
+                { model: Color, as: 'color' }
+              ]
+            }
+          ]
+        },
         { model: Payment, as: 'payments' }
       ],
       order: [['created_at', 'DESC']],
@@ -251,7 +287,25 @@ class OrderService {
       where,
       include: [
         { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] },
-        { model: OrderItem, as: 'items' },
+        {
+          model: OrderItem,
+          as: 'items',
+          include: [
+            {
+              model: ProductVariant,
+              as: 'variant',
+              include: [
+                {
+                  model: Product,
+                  as: 'product',
+                  include: [{ model: ProductImage, as: 'images' }]
+                },
+                { model: Size, as: 'size' },
+                { model: Color, as: 'color' }
+              ]
+            }
+          ]
+        },
         { model: Payment, as: 'payments' }
       ],
       order: [['created_at', 'DESC']],
