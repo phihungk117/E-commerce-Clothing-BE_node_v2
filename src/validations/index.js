@@ -169,7 +169,7 @@ const paymentValidations = {
       .withMessage('Invalid payment method'),
     body('callback_url')
       .optional()
-      .isURL({ require_tld: true })
+      .isURL({ require_tld: false, require_protocol: true, protocols: ['http', 'https'] })
       .withMessage('Valid callback URL is required'),
     validate
   ],
