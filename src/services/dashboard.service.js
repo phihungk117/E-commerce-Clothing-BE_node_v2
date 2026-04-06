@@ -54,7 +54,7 @@ class DashboardService {
     const recentOrders = await Order.findAll({
       include: [
         { model: User, as: 'user', attributes: ['full_name', 'email'] },
-        { model: Payment, as: 'payment' }
+        { model: Payment, as: 'payments' }
       ],
       order: [['created_at', 'DESC']],
       limit: 5

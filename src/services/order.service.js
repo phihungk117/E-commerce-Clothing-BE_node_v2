@@ -150,7 +150,7 @@ class OrderService {
       where,
       include: [
         { model: OrderItem, as: 'items' },
-        { model: Payment, as: 'payment' },
+        { model: Payment, as: 'payments' },
         { model: Coupon, as: 'coupon' },
         { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] }
       ]
@@ -165,7 +165,7 @@ class OrderService {
       where,
       include: [
         { model: OrderItem, as: 'items' },
-        { model: Payment, as: 'payment' }
+        { model: Payment, as: 'payments' }
       ],
       order: [['created_at', 'DESC']],
       limit,
@@ -252,7 +252,7 @@ class OrderService {
       include: [
         { model: User, as: 'user', attributes: ['user_id', 'email', 'first_name', 'last_name', 'phone_number'] },
         { model: OrderItem, as: 'items' },
-        { model: Payment, as: 'payment' }
+        { model: Payment, as: 'payments' }
       ],
       order: [['created_at', 'DESC']],
       limit,
