@@ -18,7 +18,8 @@ class PaymentController {
   async createPaymentUrl(req, res, next) {
     try {
       const { orderId, paymentMethod } = req.body;
-      const callbackUrl = req.body.callback_url || req.query.callback_url;
+      // Ưu tiên Return URL từ env để đồng bộ merchant config (không override từ FE)
+      const callbackUrl = process.env.VNPAY_RETURN_URL;
 
       await this.assertOrderAccess(orderId, req.user);
       const result = await paymentService.createPaymentUrl(orderId, paymentMethod, callbackUrl);
@@ -37,11 +38,14 @@ class PaymentController {
   async handleCallback(req, res, next) {
     try {
       const { paymentMethod } = req.params;
-      const callbackData = req.body;
+      const callbackData = (req.method === 'GET' ? req.query : req.body) || {};
 
       const rawPayload = req.rawBody || JSON.stringify(callbackData || {});
       const verified = paymentService.verifyProviderSignature(paymentMethod, callbackData, req.headers, rawPayload);
       if (!verified) {
+        if (req.method === 'GET') {
+          return res.status(400).send('Invalid payment callback signature');
+        }
         return res.status(400).json({ success: false, message: 'Invalid payment callback signature' });
       }
 
@@ -51,11 +55,14 @@ class PaymentController {
         const existingPayment = await Payment.findOne({ where: { order_id: result.orderId } });
 
         if (existingPayment && existingPayment.payment_status === 'SUCCESS') {
+          if (req.method === 'GET') {
+            return res.redirect(`${process.env.FRONT_END_URL}/orders/${result.orderId}`);
+          }
           return res.status(200).json({
             success: true,
             idempotent: true,
             orderId: result.orderId,
-            transactionCode: existingPayment.transaction_code || result.transactionCode
+            transactionCode: existingPayment.transaction_code || result.transactionCode,
           });
         }
 
@@ -63,7 +70,7 @@ class PaymentController {
           {
             payment_status: 'SUCCESS',
             transaction_code: result.transactionCode,
-            payment_time: new Date()
+            payment_time: new Date(),
           },
           { where: { order_id: result.orderId } }
         );
@@ -72,6 +79,14 @@ class PaymentController {
           { order_status: 'CONFIRMED' },
           { where: { order_id: result.orderId } }
         );
+
+        if (req.method === 'GET') {
+          return res.redirect(`${process.env.FRONT_END_URL}/orders/${result.orderId}`);
+        }
+      }
+
+      if (req.method === 'GET') {
+        return res.redirect(`${process.env.FRONT_END_URL}/orders`);
       }
 
       res.status(200).json(result);
@@ -114,7 +129,7 @@ class PaymentController {
       await this.assertOrderAccess(orderId, req.user);
       const payment = await Payment.findOne({
         where: { order_id: orderId },
-        include: [{ model: Order, as: 'order' }]
+        include: [{ model: Order, as: 'order' }],
       });
 
       if (!payment) {
