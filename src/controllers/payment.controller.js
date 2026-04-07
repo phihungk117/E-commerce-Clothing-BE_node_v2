@@ -20,9 +20,13 @@ class PaymentController {
       const { orderId, paymentMethod } = req.body;
       // Ưu tiên Return URL từ env để đồng bộ merchant config (không override từ FE)
       const callbackUrl = process.env.VNPAY_RETURN_URL;
+      const forwardedFor = req.headers['x-forwarded-for'];
+      const clientIp = Array.isArray(forwardedFor)
+        ? forwardedFor[0]
+        : (forwardedFor || req.ip || req.socket?.remoteAddress || '127.0.0.1');
 
       await this.assertOrderAccess(orderId, req.user);
-      const result = await paymentService.createPaymentUrl(orderId, paymentMethod, callbackUrl);
+      const result = await paymentService.createPaymentUrl(orderId, paymentMethod, callbackUrl, clientIp);
 
       res.status(200).json(result);
     } catch (error) {
