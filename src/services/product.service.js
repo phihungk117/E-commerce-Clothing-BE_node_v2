@@ -1,4 +1,15 @@
-const { Product, Category, Material, ProductImage, ProductVariant, Color, Size, Inventory } = require('../models');
+const {
+    Product,
+    Category,
+    Material,
+    ProductImage,
+    ProductVariant,
+    Color,
+    Size,
+    Inventory,
+    CartItem,
+    sequelize,
+} = require('../models');
 const { Op } = require('sequelize');
 
 /** Nhóm ảnh theo color_id; ảnh không gắn màu (null) vào bucket `default`. */
@@ -295,16 +306,361 @@ const getFilterOptions = async () => ({
     filters: ['category_id', 'color_id', 'size_id', 'gender', 'age_group', 'min_price', 'max_price'],
 });
 
-const createProduct = async () => {
-    throw new Error('createProduct: implement or use admin API');
+function toBoolean(v) {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'string') {
+        const x = v.trim().toLowerCase();
+        return x === 'true' || x === '1' || x === 'yes';
+    }
+    return false;
+}
+
+function isNonEmptyString(v) {
+    return typeof v === 'string' && v.trim().length > 0;
+}
+
+function toNumberOrNull(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : NaN;
+}
+
+function fail(message, status = 400) {
+    const err = new Error(message);
+    err.status = status;
+    throw err;
+}
+
+async function ensureCategoryExists(categoryId, options = {}) {
+    if (!categoryId) return;
+    const category = await Category.findByPk(categoryId, options);
+    if (!category) fail('Category not found', 404);
+}
+
+async function ensureMaterialExists(materialId, options = {}) {
+    if (!materialId) return;
+    const material = await Material.findByPk(materialId, options);
+    if (!material) fail('Material not found', 404);
+}
+
+async function ensureColorExists(colorId, options = {}) {
+    if (!colorId) return;
+    const color = await Color.findByPk(colorId, options);
+    if (!color) fail('Color not found', 404);
+}
+
+async function ensureSizeExists(sizeId, options = {}) {
+    if (!sizeId) return;
+    const size = await Size.findByPk(sizeId, options);
+    if (!size) fail('Size not found', 404);
+}
+
+function normalizeCreatePayload(data = {}) {
+    const payload = {
+        category_id: data.category_id,
+        material_id: data.material_id ?? null,
+        name: data.name,
+        description: data.description ?? null,
+        base_price: data.base_price,
+        gender: data.gender,
+        age_group: data.age_group,
+    };
+
+    if (!payload.category_id) fail('category_id is required');
+    if (!isNonEmptyString(payload.name)) fail('name is required');
+    if (payload.base_price === undefined || payload.base_price === null || payload.base_price === '') {
+        fail('base_price is required');
+    }
+
+    const p = toNumberOrNull(payload.base_price);
+    if (!Number.isFinite(p) || p < 0) fail('base_price must be a non-negative number');
+
+    const allowedGender = new Set(['MALE', 'FEMALE', 'UNISEX']);
+    if (!allowedGender.has(String(payload.gender || '').toUpperCase())) {
+        fail('gender must be one of MALE, FEMALE, UNISEX');
+    }
+
+    const allowedAgeGroup = new Set(['ADULT', 'TEEN', 'KID', 'BABY']);
+    if (!allowedAgeGroup.has(String(payload.age_group || '').toUpperCase())) {
+        fail('age_group must be one of ADULT, TEEN, KID, BABY');
+    }
+
+    payload.base_price = p;
+    payload.gender = String(payload.gender).toUpperCase();
+    payload.age_group = String(payload.age_group).toUpperCase();
+    if (payload.material_id === '') payload.material_id = null;
+
+    return payload;
+}
+
+function normalizeUpdatePayload(data = {}) {
+    const payload = {};
+
+    if (data.category_id !== undefined) payload.category_id = data.category_id;
+    if (data.material_id !== undefined) payload.material_id = data.material_id || null;
+    if (data.name !== undefined) payload.name = data.name;
+    if (data.description !== undefined) payload.description = data.description;
+    if (data.gender !== undefined) payload.gender = String(data.gender).toUpperCase();
+    if (data.age_group !== undefined) payload.age_group = String(data.age_group).toUpperCase();
+    if (data.base_price !== undefined) {
+        const p = toNumberOrNull(data.base_price);
+        if (!Number.isFinite(p) || p < 0) fail('base_price must be a non-negative number');
+        payload.base_price = p;
+    }
+
+    if (payload.name !== undefined && !isNonEmptyString(payload.name)) fail('name cannot be empty');
+
+    if (payload.gender !== undefined) {
+        const allowedGender = new Set(['MALE', 'FEMALE', 'UNISEX']);
+        if (!allowedGender.has(payload.gender)) fail('gender must be one of MALE, FEMALE, UNISEX');
+    }
+
+    if (payload.age_group !== undefined) {
+        const allowedAgeGroup = new Set(['ADULT', 'TEEN', 'KID', 'BABY']);
+        if (!allowedAgeGroup.has(payload.age_group)) fail('age_group must be one of ADULT, TEEN, KID, BABY');
+    }
+
+    return payload;
+}
+
+function normalizeVariantsInput(variants) {
+    if (variants === undefined || variants === null) return [];
+    if (!Array.isArray(variants)) fail('variants must be an array');
+
+    return variants.map((v, idx) => {
+        if (!v || typeof v !== 'object') fail(`variants[${idx}] must be an object`);
+        if (!v.color_id) fail(`variants[${idx}].color_id is required`);
+        if (!v.size_id) fail(`variants[${idx}].size_id is required`);
+        if (!isNonEmptyString(v.sku)) fail(`variants[${idx}].sku is required`);
+
+        const price = v.price === undefined || v.price === null || v.price === '' ? null : Number(v.price);
+        const originalPrice = v.original_price === undefined || v.original_price === null || v.original_price === '' ? null : Number(v.original_price);
+        const stockQty = v.stock_quantity === undefined || v.stock_quantity === null || v.stock_quantity === '' ? 0 : Number(v.stock_quantity);
+        const weight = v.weight === undefined || v.weight === null || v.weight === '' ? null : Number(v.weight);
+
+        if (price !== null && (!Number.isFinite(price) || price < 0)) fail(`variants[${idx}].price must be a non-negative number`);
+        if (originalPrice !== null && (!Number.isFinite(originalPrice) || originalPrice < 0)) fail(`variants[${idx}].original_price must be a non-negative number`);
+        if (!Number.isFinite(stockQty) || stockQty < 0) fail(`variants[${idx}].stock_quantity must be a non-negative number`);
+        if (weight !== null && (!Number.isFinite(weight) || weight < 0)) fail(`variants[${idx}].weight must be a non-negative number`);
+
+        return {
+            color_id: v.color_id,
+            size_id: v.size_id,
+            sku: String(v.sku).trim(),
+            image: v.image || null,
+            original_price: originalPrice,
+            price,
+            stock_quantity: Math.floor(stockQty),
+            weight,
+            is_active: v.is_active === undefined ? true : toBoolean(v.is_active),
+        };
+    });
+}
+
+function normalizeImagesInput(images) {
+    if (images === undefined || images === null) return [];
+    if (!Array.isArray(images)) fail('images must be an array');
+
+    return images.map((img, idx) => {
+        if (!img || typeof img !== 'object') fail(`images[${idx}] must be an object`);
+        if (!isNonEmptyString(img.image_url)) fail(`images[${idx}].image_url is required`);
+
+        return {
+            image_url: String(img.image_url).trim(),
+            alt_text: img.alt_text ?? null,
+            color_id: img.color_id || null,
+            is_thumbnail: toBoolean(img.is_thumbnail),
+            sort_order: img.sort_order === undefined || img.sort_order === null || img.sort_order === ''
+                ? idx
+                : Number(img.sort_order),
+        };
+    });
+}
+
+function ensureUniqueVariantsOrFail(variants = []) {
+    const combo = new Set();
+    const skuSet = new Set();
+
+    for (const v of variants) {
+        const key = `${v.color_id}__${v.size_id}`;
+        if (combo.has(key)) fail('Duplicate variant combination (color_id + size_id) in payload');
+        combo.add(key);
+
+        const skuKey = String(v.sku).toLowerCase();
+        if (skuSet.has(skuKey)) fail('Duplicate SKU in variants payload');
+        skuSet.add(skuKey);
+    }
+}
+
+async function ensureVariantRefsExist(variants = [], options = {}) {
+    for (const v of variants) {
+        await ensureColorExists(v.color_id, options);
+        await ensureSizeExists(v.size_id, options);
+    }
+}
+
+async function ensureImageRefsExist(images = [], options = {}) {
+    for (const img of images) {
+        if (img.color_id) await ensureColorExists(img.color_id, options);
+    }
+}
+
+async function getMainWarehouseId(options = {}) {
+    let warehouse = await sequelize.models.Warehouse.findOne({
+        where: { code: 'MAIN' },
+        paranoid: false,
+        ...options,
+    });
+
+    if (!warehouse) {
+        warehouse = await sequelize.models.Warehouse.create(
+            {
+                name: 'Default Warehouse',
+                code: 'MAIN',
+                address: 'N/A',
+                is_active: true,
+            },
+            options,
+        );
+    } else if (warehouse.deleted_at) {
+        await warehouse.restore(options);
+        if (!warehouse.is_active) {
+            await warehouse.update({ is_active: true }, options);
+        }
+    }
+
+    return warehouse.warehouse_id;
+}
+
+const createProduct = async (data = {}) => {
+    const payload = normalizeCreatePayload(data);
+    const variants = normalizeVariantsInput(data.variants);
+    const images = normalizeImagesInput(data.images);
+
+    ensureUniqueVariantsOrFail(variants);
+
+    const productId = await sequelize.transaction(async (transaction) => {
+        const tx = { transaction };
+
+        await ensureCategoryExists(payload.category_id, tx);
+        await ensureMaterialExists(payload.material_id, tx);
+        await ensureVariantRefsExist(variants, tx);
+        await ensureImageRefsExist(images, tx);
+
+        if (variants.length > 0) {
+            const skus = variants.map((v) => v.sku);
+            const skuExists = await ProductVariant.findOne({ where: { sku: { [Op.in]: skus } }, ...tx });
+            if (skuExists) fail(`SKU already exists: ${skuExists.sku}`, 400);
+        }
+
+        const product = await Product.create(payload, tx);
+
+        if (variants.length > 0) {
+            const warehouseId = await getMainWarehouseId(tx);
+            for (const v of variants) {
+                const createdVariant = await ProductVariant.create(
+                    {
+                        ...v,
+                        product_id: product.product_id,
+                    },
+                    tx,
+                );
+
+                await Inventory.create(
+                    {
+                        warehouse_id: warehouseId,
+                        variant_id: createdVariant.variant_id,
+                        on_hand: v.stock_quantity || 0,
+                        reserved: 0,
+                    },
+                    tx,
+                );
+            }
+        }
+
+        if (images.length > 0) {
+            const hasThumb = images.some((img) => img.is_thumbnail);
+            const normalizedImages = hasThumb
+                ? images
+                : images.map((img, idx) => ({ ...img, is_thumbnail: idx === 0 }));
+
+            for (const img of normalizedImages) {
+                await ProductImage.create(
+                    {
+                        ...img,
+                        product_id: product.product_id,
+                    },
+                    tx,
+                );
+            }
+        }
+
+        return product.product_id;
+    });
+
+    return getProductById(productId);
 };
 
-const updateProduct = async () => {
-    throw new Error('updateProduct: implement or use admin API');
+const updateProduct = async (id, data = {}) => {
+    const payload = normalizeUpdatePayload(data);
+
+    const updatedId = await sequelize.transaction(async (transaction) => {
+        const tx = { transaction };
+        const product = await Product.findByPk(id, tx);
+        if (!product) fail('Product not found', 404);
+
+        if (payload.category_id !== undefined) {
+            await ensureCategoryExists(payload.category_id, tx);
+        }
+        if (payload.material_id !== undefined && payload.material_id !== null) {
+            await ensureMaterialExists(payload.material_id, tx);
+        }
+
+        if (Object.keys(payload).length > 0) {
+            await product.update(payload, tx);
+        }
+
+        return product.product_id;
+    });
+
+    return getProductById(updatedId);
 };
 
-const deleteProduct = async () => {
-    throw new Error('deleteProduct: implement or use admin API');
+const deleteProduct = async (id) => {
+    await sequelize.transaction(async (transaction) => {
+        const tx = { transaction };
+
+        const product = await Product.findByPk(id, {
+            ...tx,
+            include: [
+                {
+                    model: ProductVariant,
+                    as: 'variants',
+                    required: false,
+                },
+                {
+                    model: ProductImage,
+                    as: 'images',
+                    required: false,
+                },
+            ],
+        });
+
+        if (!product) fail('Product not found', 404);
+
+        const variantIds = (product.variants || []).map((v) => v.variant_id);
+
+        if (variantIds.length > 0) {
+            const inCartCount = await CartItem.count({ where: { variant_id: { [Op.in]: variantIds } }, ...tx });
+            if (inCartCount > 0) {
+                fail('Cannot delete product: one or more variants are still in carts', 409);
+            }
+        }
+
+        await product.destroy(tx);
+    });
+
+    return { message: 'Product deleted successfully' };
 };
 
 module.exports = {
