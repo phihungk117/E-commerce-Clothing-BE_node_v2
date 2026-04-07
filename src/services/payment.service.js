@@ -28,7 +28,7 @@ let cachedClientKey = null;
 
 function getVNPayClient() {
   const tmnCode = process.env.VNPAY_TMN_CODE || '';
-  const secureSecret = process.env.VNPAY_HASH_SECRET || '';
+  const secureSecret = process.env.VNPAY_HASH_SECRET || process.env.VNPAY_SECURE_SECRET || '';
   const vnpayHost = resolveVNPayHost();
   const testMode = String(process.env.VNPAY_TEST_MODE || 'true').toLowerCase() !== 'false';
 
@@ -141,7 +141,7 @@ class PaymentService {
 
   handleVNPayCallback(data) {
     const payload = { ...(data || {}) };
-    const verify = getVNPayClient().verifyReturnUrl(payload);
+    const verify = getVNPayClient().verifyIpnCall(payload);
 
     if (!verify?.isVerified) {
       return { success: false, message: 'Invalid VNPay signature' };
@@ -157,7 +157,7 @@ class PaymentService {
 
     return {
       success: false,
-      message: verify.message || `Payment failed with code ${payload.vnp_ResponseCode || 'UNKNOWN'}`,
+      message: verify.message || this.getVNPayReturnCodeDescription(payload.vnp_ResponseCode),
       orderId: payload.vnp_TxnRef,
     };
   }
