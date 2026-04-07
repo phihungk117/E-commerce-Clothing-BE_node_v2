@@ -1,18 +1,5 @@
-const crypto = require('crypto');
+const { VNPay } = require('vnpay');
 const { Payment, Order } = require('../models');
-
-function buildVNPaySignedQuery(params, secret) {
-  const sortedKeys = Object.keys(params).sort();
-  const encodedPairs = sortedKeys.map((key) => {
-    const value = params[key] ?? '';
-    const encValue = encodeURIComponent(String(value)).replace(/%20/g, '+');
-    return `${key}=${encValue}`;
-  });
-  const signData = encodedPairs.join('&');
-  const hmac = crypto.createHmac('sha512', secret);
-  const secureHash = hmac.update(Buffer.from(signData, 'utf-8')).digest('hex');
-  return { signData, secureHash };
-}
 
 function sanitizeIp(ip) {
   if (!ip || typeof ip !== 'string') return '127.0.0.1';
@@ -20,6 +7,51 @@ function sanitizeIp(ip) {
     .replace('::ffff:', '')
     .split(',')[0]
     .trim() || '127.0.0.1';
+}
+
+function resolveVNPayHost() {
+  const fallbackHost = 'https://sandbox.vnpayment.vn';
+  const configuredUrl = process.env.VNPAY_URL;
+
+  if (!configuredUrl) return fallbackHost;
+
+  try {
+    const u = new URL(configuredUrl);
+    return `${u.protocol}//${u.host}`;
+  } catch (_e) {
+    return fallbackHost;
+  }
+}
+
+let cachedVNPayClient = null;
+let cachedClientKey = null;
+
+function getVNPayClient() {
+  const tmnCode = process.env.VNPAY_TMN_CODE || '';
+  const secureSecret = process.env.VNPAY_HASH_SECRET || '';
+  const vnpayHost = resolveVNPayHost();
+  const testMode = String(process.env.VNPAY_TEST_MODE || 'true').toLowerCase() !== 'false';
+
+  if (!tmnCode) {
+    throw new Error('VNPAY_TMN_CODE is not configured');
+  }
+  if (!secureSecret) {
+    throw new Error('VNPAY_HASH_SECRET is not configured');
+  }
+
+  const key = `${tmnCode}::${secureSecret}::${vnpayHost}::${testMode}`;
+  if (cachedVNPayClient && cachedClientKey === key) return cachedVNPayClient;
+
+  cachedVNPayClient = new VNPay({
+    tmnCode,
+    secureSecret,
+    vnpayHost,
+    testMode,
+    enableLog: false,
+  });
+  cachedClientKey = key;
+
+  return cachedVNPayClient;
 }
 
 // Base Payment Service
@@ -80,72 +112,42 @@ class PaymentService {
     return payment;
   }
 
-  // VNPay integration
+  // VNPay integration via vnpay package
   createVNPayUrl(order, callbackUrl, clientIp) {
-    const vnp_TmnCode = process.env.VNPAY_TMN_CODE || 'YOUR_TMN_CODE';
-    const vnp_HashSecret = process.env.VNPAY_HASH_SECRET || 'YOUR_HASH_SECRET';
-    const vnp_Url = process.env.VNPAY_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+    const client = getVNPayClient();
     const vnp_ReturnUrl = callbackUrl || process.env.VNPAY_RETURN_URL;
 
-    if (!vnp_TmnCode || vnp_TmnCode === 'YOUR_TMN_CODE') {
-      throw new Error('VNPAY_TMN_CODE is not configured');
-    }
-    if (!vnp_HashSecret || vnp_HashSecret === 'YOUR_HASH_SECRET') {
-      throw new Error('VNPAY_HASH_SECRET is not configured');
-    }
     if (!vnp_ReturnUrl) {
       throw new Error('VNPAY_RETURN_URL is not configured');
     }
 
-    const date = new Date();
-    const createDate = dateFormat(date, 'yyyyMMddHHmmss');
-    const orderId = order.order_id;
-    const amount = Math.round(Number(order.total_amount) * 100);
-    const orderType = 'other';
-
+    const amount = Number(order.total_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error('Order amount is invalid for VNPay');
     }
 
-    const vnp_Params = {
-      vnp_Version: '2.1.0',
-      vnp_Command: 'pay',
-      vnp_TmnCode: vnp_TmnCode,
-      vnp_Amount: amount,
-      vnp_CurrCode: 'VND',
-      vnp_TxnRef: orderId,
-      vnp_OrderInfo: `Thanh toan don hang ${order.order_code || order.order_id}`,
-      vnp_OrderType: orderType,
-      vnp_Locale: 'vn',
-      vnp_ReturnUrl: vnp_ReturnUrl,
+    const paymentUrl = client.buildPaymentUrl({
+      vnp_Amount: Math.round(amount),
       vnp_IpAddr: sanitizeIp(clientIp),
-      vnp_CreateDate: createDate
-    };
-
-    const { secureHash } = buildVNPaySignedQuery(vnp_Params, vnp_HashSecret);
-
-    const sortedKeys = Object.keys(vnp_Params).sort();
-    const query = sortedKeys
-      .map((key) => `${key}=${encodeURIComponent(String(vnp_Params[key])).replace(/%20/g, '+')}`)
-      .join('&');
-
-    const paymentUrl = `${vnp_Url}?${query}&vnp_SecureHash=${secureHash}`;
+      vnp_TxnRef: order.order_id,
+      vnp_OrderInfo: `Thanh toan don hang ${order.order_code || order.order_id}`,
+      vnp_OrderType: 'other',
+      vnp_ReturnUrl,
+      vnp_Locale: String(process.env.VNPAY_LOCALE || 'vn').toLowerCase() === 'en' ? 'en' : 'vn',
+    });
 
     return { paymentUrl, method: 'VNPAY', orderId: order.order_id };
   }
 
   handleVNPayCallback(data) {
     const payload = { ...(data || {}) };
-    const isValidSignature = this.verifyVNPaySignature(payload);
+    const verify = getVNPayClient().verifyReturnUrl(payload);
 
-    if (!isValidSignature) {
+    if (!verify?.isVerified) {
       return { success: false, message: 'Invalid VNPay signature' };
     }
 
-    const responseCode = payload.vnp_ResponseCode;
-    const transactionStatus = payload.vnp_TransactionStatus;
-
-    if (responseCode === '00' && (!transactionStatus || transactionStatus === '00')) {
+    if (verify.isSuccess) {
       return {
         success: true,
         orderId: payload.vnp_TxnRef,
@@ -155,28 +157,14 @@ class PaymentService {
 
     return {
       success: false,
-      message: `Payment failed with code ${responseCode || 'UNKNOWN'}`,
+      message: verify.message || `Payment failed with code ${payload.vnp_ResponseCode || 'UNKNOWN'}`,
       orderId: payload.vnp_TxnRef,
     };
   }
 
   verifyVNPaySignature(data) {
-    const hash = data?.vnp_SecureHash;
-    const secret = process.env.VNPAY_HASH_SECRET;
-    if (!hash || !secret) return false;
-
-    const copy = { ...data };
-    delete copy.vnp_SecureHash;
-    delete copy.vnp_SecureHashType;
-
-    const params = {};
-    for (const [key, value] of Object.entries(copy)) {
-      if (!key.startsWith('vnp_') || value === undefined || value === null) continue;
-      params[key] = value;
-    }
-
-    const { secureHash } = buildVNPaySignedQuery(params, secret);
-    return hash === secureHash;
+    const verify = getVNPayClient().verifyReturnUrl({ ...(data || {}) });
+    return Boolean(verify?.isVerified);
   }
 
   verifyProviderSignature(paymentMethod, callbackData, _headers, _rawPayload) {
@@ -205,23 +193,6 @@ class PaymentService {
     };
     return map[String(code)] || 'Lỗi không xác định';
   }
-}
-
-function dateFormat(date, format) {
-  const yyyy = date.getFullYear();
-  const MM = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  const HH = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  const ss = String(date.getSeconds()).padStart(2, '0');
-
-  return format
-    .replace('yyyy', yyyy)
-    .replace('MM', MM)
-    .replace('dd', dd)
-    .replace('HH', HH)
-    .replace('mm', mm)
-    .replace('ss', ss);
 }
 
 module.exports = new PaymentService();
