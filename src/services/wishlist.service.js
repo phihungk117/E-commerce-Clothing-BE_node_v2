@@ -1,4 +1,4 @@
-const { Wishlist, Product, User } = require('../models');
+const { Wishlist, Product, ProductImage, ProductVariant } = require('../models');
 const { Op } = require('sequelize');
 
 class WishlistService {
@@ -73,4 +73,4 @@ class WishlistService {
   }
 }
 
-module.exports = new WishlistService();module.exports = new WishlistService();
+module.exports = new WishlistService();

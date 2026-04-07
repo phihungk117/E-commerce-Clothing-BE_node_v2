@@ -26,7 +26,7 @@ const searchProducts = async (req, res, next) => {
 
 const getProductById = async (req, res, next) => {
     try {
-        const result = await productService.getProductById(req.params.id);
+        const result = await productService.getProductById(req.params.id, req.query);
         res.status(200).json({
             success: true,
             data: result
