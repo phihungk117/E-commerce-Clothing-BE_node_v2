@@ -31,6 +31,33 @@ const verifyToken = (req, res, next) => {
     }
 };
 
+
+
+const verifyTokenOptional = (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+        }
+
+        const token = authHeader.split(' ')[1]?.trim();
+        // FE có thể gửi "Bearer " khi chưa đăng nhập -> coi như guest
+        if (!token) return next();
+
+        const decoded = jwt.verify(token, config.jwt.secret);
+        req.user = decoded;
+        next();
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            error.message = 'Token has expired';
+        } else if (error.name === 'JsonWebTokenError') {
+            error.message = 'Invalid token';
+        }
+        error.status = 401;
+        next(error);
+    }
+};
+
 const authorize = (...roles) => {
     return (req, res, next) => {
         if (!req.user) {
@@ -51,5 +78,6 @@ const authorize = (...roles) => {
 
 module.exports = {
     verifyToken,
+    verifyTokenOptional,
     authorize
 };

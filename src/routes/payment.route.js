@@ -9,10 +9,12 @@ const pc = paymentController;
 // Create payment URL for order (bind so class methods keep `this`)
 router.post('/create-url', verifyToken, paymentValidations.createUrl, pc.createPaymentUrl.bind(pc));
 
-// Generic callback route (legacy)
+// Generic callback route (VNPay return URL thường gọi GET)
+router.get('/callback/:paymentMethod', pc.handleCallback.bind(pc));
 router.post('/callback/:paymentMethod', pc.handleCallback.bind(pc));
 
 // Provider-specific webhooks (recommended)
+router.get('/webhook/:provider', pc.handleProviderWebhook.bind(pc));
 router.post('/webhook/:provider', pc.handleProviderWebhook.bind(pc));
 
 // Admin refund endpoint

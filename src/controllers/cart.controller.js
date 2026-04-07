@@ -1,6 +1,14 @@
 const cartService = require('../services/cart.service');
 const { v4: uuidv4 } = require('uuid');
 
+function buildCartResponse(userId, cart) {
+  const response = { cart };
+  if (!userId && cart?.session_id) {
+    response.session_id = cart.session_id;
+  }
+  return response;
+}
+
 class CartController {
   async getCart(req, res, next) {
     try {
@@ -9,13 +17,7 @@ class CartController {
       
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       
-      // Return session_id for guests
-      const response = { cart };
-      if (!userId && cart.session_id) {
-        response.session_id = cart.session_id;
-      }
-      
-      res.status(200).json(response);
+      res.status(200).json(buildCartResponse(userId, cart));
     } catch (error) {
       next(error);
     }
@@ -30,7 +32,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.addItem(cart.cart_id, variant_id, quantity);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
@@ -46,7 +48,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.updateItemQuantity(cart.cart_id, variantId, quantity);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
@@ -61,7 +63,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.removeItem(cart.cart_id, variantId);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
@@ -76,7 +78,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.applyCoupon(cart.cart_id, code);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
@@ -90,7 +92,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.removeCoupon(cart.cart_id);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
@@ -104,7 +106,7 @@ class CartController {
       const cart = await cartService.getOrCreateCart(userId, sessionId);
       const updatedCart = await cartService.clearCart(cart.cart_id);
       
-      res.status(200).json({ cart: updatedCart });
+      res.status(200).json(buildCartResponse(userId, updatedCart));
     } catch (error) {
       next(error);
     }
