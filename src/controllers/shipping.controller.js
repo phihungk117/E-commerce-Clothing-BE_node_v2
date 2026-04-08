@@ -26,9 +26,16 @@ class ShippingController {
 
   async calculateShipping(req, res, next) {
     try {
-      const { methodId, zoneId } = req.body;
-      const result = await shippingService.calculateShippingFee(methodId, zoneId);
-      res.status(200).json(result || { fee: 0, estimated_days: null });
+      const { methodId, zoneId, subtotal } = req.body;
+      const merchandiseSubtotal = subtotal != null ? parseFloat(subtotal) : 0;
+      const fee = await shippingService.calculateFinalShippingFee(
+        merchandiseSubtotal,
+        methodId,
+        zoneId
+      );
+      const row = await shippingService.calculateShippingFee(methodId, zoneId);
+      const estimated_days = row?.estimated_days ?? null;
+      res.status(200).json({ fee, estimated_days });
     } catch (error) {
       next(error);
     }

@@ -112,8 +112,9 @@ const loginWithGoogle = async (req, res, next) => {
         }
 
         const data = await authService.loginWithGoogle(token);
-        res.json({
+        res.status(200).json({
             success: true,
+            message: 'Login successful',
             data
         });
     } catch (error) {

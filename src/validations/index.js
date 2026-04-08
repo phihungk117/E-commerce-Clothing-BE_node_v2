@@ -73,6 +73,28 @@ const orderValidations = {
     body('payment_method')
       .isIn(['COD', 'VNPAY'])
       .withMessage('Invalid payment method'),
+    body('shipping_method_id')
+      .optional({ values: 'null' })
+      .isUUID()
+      .withMessage('Invalid shipping method id'),
+    body('shipping_zone_id')
+      .optional({ values: 'null' })
+      .isUUID()
+      .withMessage('Invalid shipping zone id'),
+    body('address_id')
+      .optional({ values: 'null' })
+      .isUUID()
+      .withMessage('Invalid address id'),
+    body('shipping_city')
+      .optional()
+      .trim()
+      .isLength({ max: 120 })
+      .withMessage('shipping_city too long'),
+    body('shipping_district')
+      .optional()
+      .trim()
+      .isLength({ max: 120 })
+      .withMessage('shipping_district too long'),
     body('note')
       .optional()
       .isLength({ max: 1000 })
@@ -181,6 +203,10 @@ const paymentValidations = {
     body('zoneId')
       .isUUID()
       .withMessage('Valid shipping zone ID is required'),
+    body('subtotal')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('subtotal must be >= 0'),
     validate
   ]
 };

@@ -1,5 +1,6 @@
-const { Order, OrderItem, Cart, CartItem, ProductVariant, Product, ProductImage, Size, Color, Payment, User, Coupon, Inventory, StockMovement, sequelize } = require('../models');
+const { Order, OrderItem, Cart, CartItem, ProductVariant, Product, ProductImage, Size, Color, Payment, User, Coupon, CouponUsage, Inventory, StockMovement, sequelize } = require('../models');
 const { Op } = require('sequelize');
+const shippingService = require('./shipping.service');
 
 class OrderService {
   generateOrderCode() {
@@ -11,7 +12,12 @@ class OrderService {
   async createOrder(userId, orderData) {
     const {
       customer_name, customer_phone, shipping_address, note,
-      payment_method
+      payment_method,
+      shipping_method_id: bodyShippingMethodId,
+      shipping_zone_id: bodyShippingZoneId,
+      address_id: bodyAddressId,
+      shipping_city: bodyShippingCity,
+      shipping_district: bodyShippingDistrict,
     } = orderData;
 
     const orderId = await sequelize.transaction(async (transaction) => {
@@ -89,7 +95,18 @@ class OrderService {
         }
       }
 
-      const shippingFee = 0;
+      const shippingFee = await shippingService.resolveOrderShippingFee(
+        subtotal,
+        bodyShippingMethodId,
+        bodyShippingZoneId,
+        {
+          user_id: userId,
+          address_id: bodyAddressId,
+          city: bodyShippingCity,
+          district: bodyShippingDistrict,
+          shipping_address,
+        }
+      );
       const totalAmount = subtotal + shippingFee - discountAmount;
 
       const order = await Order.create({
@@ -120,6 +137,19 @@ class OrderService {
         amount: totalAmount,
         payment_status: payment_method === 'COD' ? 'SUCCESS' : 'PENDING'
       }, { transaction });
+
+      if (couponId && discountAmount > 0) {
+        await CouponUsage.create(
+          {
+            coupon_id: couponId,
+            user_id: userId,
+            order_id: order.order_id,
+            discount_amount: discountAmount
+          },
+          { transaction }
+        );
+        await Coupon.increment('usage_count', { by: 1, where: { coupon_id: couponId }, transaction });
+      }
 
       await CartItem.destroy({ where: { cart_id: cart.cart_id }, transaction });
       await cart.update({ coupon_id: null }, { transaction });

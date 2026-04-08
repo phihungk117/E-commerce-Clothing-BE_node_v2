@@ -7,7 +7,9 @@
     "test": "jest --coverage --verbose",
     "test:watch": "jest --watch",
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "seed:shipping": "node scripts/seed-shipping-zones.js",
+    "test:shipping-fee": "node scripts/test-shipping-fee.js"
   },
   "jest": {
     "testEnvironment": "node",

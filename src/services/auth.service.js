@@ -266,13 +266,33 @@ const resetPassword = async (token, newPassword) => {
 };
 
 const loginWithGoogle = async (idToken) => {
-    // Verify Google Token
-    const ticket = await client.verifyIdToken({
-        idToken: idToken,
-        audience: config.google.client_id
-    });
+    if (!config.google.client_id) {
+        const err = new Error('Google sign-in is not configured (missing GOOGLE_CLIENT_ID)');
+        err.status = 503;
+        throw err;
+    }
+
+    let ticket;
+    try {
+        ticket = await client.verifyIdToken({
+            idToken: idToken,
+            audience: config.google.client_id
+        });
+    } catch {
+        const err = new Error('Invalid or expired Google token');
+        err.status = 401;
+        throw err;
+    }
+
     const payload = ticket.getPayload();
-    const { email, given_name, family_name, picture, sub: googleId } = payload;
+    const email = payload?.email;
+    const { given_name, family_name, picture, sub: googleId } = payload || {};
+
+    if (!email) {
+        const err = new Error('Google account did not provide an email');
+        err.status = 400;
+        throw err;
+    }
 
     // Check if user exists
     let user = await User.findOne({ where: { email } });
@@ -300,6 +320,9 @@ const loginWithGoogle = async (idToken) => {
             throw error;
         }
 
+        if (!user.auth_provider_id && googleId) {
+            user.auth_provider_id = googleId;
+        }
         await user.save();
     } else {
         // Create new user
