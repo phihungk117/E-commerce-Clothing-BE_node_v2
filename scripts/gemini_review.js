@@ -15,7 +15,7 @@ async function run() {
     // Initialize Octokit and Gemini
     const octokit = new Octokit({ auth: githubToken });
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-lite-latest" });
 
     // Get PR details
     const eventPath = process.env.GITHUB_EVENT_PATH;
