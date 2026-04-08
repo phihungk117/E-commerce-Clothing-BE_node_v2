@@ -5,7 +5,7 @@ const couponController = require('../../controllers/coupon.controller');
 const router = express.Router();
 
 // All routes require Admin authentication
-router.use(verifyToken, authorize('ADMIN'));
+router.use(verifyToken, authorize('ADMIN', 'STAFF'));
 
 router.get('/', couponController.getAllCoupons);
 router.get('/:id', couponController.getCouponById);

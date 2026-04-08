@@ -68,12 +68,24 @@ class OrderService {
       if (cart.coupon_id) {
         const coupon = cart.coupon;
         if (coupon && this.isCouponValid(coupon)) {
-          if (coupon.discount_type === 'PERCENTAGE') {
-            discountAmount = subtotal * (coupon.discount_value / 100);
-          } else {
-            discountAmount = Math.min(coupon.discount_value, subtotal);
+          const minOrder = parseFloat(coupon.min_order_value ?? 0);
+          if (subtotal >= minOrder) {
+            const dt = String(coupon.discount_type || '').toLowerCase();
+            if (dt === 'percentage') {
+              discountAmount = (subtotal * parseFloat(coupon.discount_value)) / 100;
+              if (
+                coupon.max_discount_amount != null &&
+                discountAmount > parseFloat(coupon.max_discount_amount)
+              ) {
+                discountAmount = parseFloat(coupon.max_discount_amount);
+              }
+            } else if (dt === 'fixed_amount') {
+              discountAmount = Math.min(parseFloat(coupon.discount_value || 0), subtotal);
+            }
           }
-          couponId = coupon.coupon_id;
+          if (discountAmount > 0) {
+            couponId = coupon.coupon_id;
+          }
         }
       }
 

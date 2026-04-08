@@ -7,7 +7,7 @@ const { validate } = require('../../validations');
 const router = express.Router();
 
 // Admin routes
-router.get('/', verifyToken, authorize('ADMIN'), orderController.getAllOrders);
+router.get('/', verifyToken, authorize('ADMIN', 'STAFF'), orderController.getAllOrders);
 router.get('/:orderId', verifyToken, authorize('ADMIN', 'STAFF'), orderController.getOrderDetail);
 router.patch('/:orderId/status', verifyToken, authorize('ADMIN', 'STAFF'), [
   body('status').isIn(['PENDING', 'CONFIRMED', 'SHIPPING', 'DELIVERED', 'CANCELLED', 'RETURNED']),

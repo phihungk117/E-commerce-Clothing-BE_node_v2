@@ -1,6 +1,38 @@
 const { Cart, CartItem, ProductVariant, Product, ProductImage, Coupon } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
+function computeSubtotalFromPlainCart(plain) {
+  const items = plain.items || [];
+  return items.reduce((sum, item) => {
+    const price = parseFloat(item.variant?.price ?? 0);
+    const qty = parseInt(item.quantity ?? 0, 10);
+    return sum + price * qty;
+  }, 0);
+}
+
+/** Match cart/checkout rules: active, dates, min order, percentage vs fixed_amount, max cap */
+function computeDiscountFromCoupon(coupon, subtotal) {
+  if (!coupon || subtotal <= 0) return 0;
+  const now = new Date();
+  if (!coupon.is_active) return 0;
+  if (coupon.start_date && now < new Date(coupon.start_date)) return 0;
+  if (coupon.end_date && now > new Date(coupon.end_date)) return 0;
+  const minOrder = parseFloat(coupon.min_order_value ?? 0);
+  if (subtotal < minOrder) return 0;
+
+  const dt = String(coupon.discount_type || '').toLowerCase();
+  let amount = 0;
+  if (dt === 'percentage') {
+    amount = (subtotal * parseFloat(coupon.discount_value)) / 100;
+    if (coupon.max_discount_amount != null && amount > parseFloat(coupon.max_discount_amount)) {
+      amount = parseFloat(coupon.max_discount_amount);
+    }
+  } else if (dt === 'fixed_amount') {
+    amount = parseFloat(coupon.discount_value || 0);
+  }
+  return Math.min(Math.max(0, amount), subtotal);
+}
+
 class CartService {
   // Get or create cart for user
   async getOrCreateCart(userId, sessionId = null) {
@@ -21,7 +53,10 @@ class CartService {
     } else if (sessionId) {
       cart = await Cart.findOne({
         where: { session_id: sessionId },
-        include: [{ model: CartItem, as: 'items' }]
+        include: [
+          { model: CartItem, as: 'items', include: [{ model: ProductVariant, as: 'variant', include: [{ model: Product, as: 'product' }] }] },
+          { model: Coupon, as: 'coupon' },
+        ],
       });
       
       if (!cart) {
@@ -110,8 +145,9 @@ class CartService {
       throw new Error('Cart not found');
     }
     
+    const normalizedCode = String(couponCode).trim().toUpperCase();
     const coupon = await Coupon.findOne({
-      where: { code: couponCode, is_active: true }
+      where: { code: normalizedCode, is_active: true }
     });
     
     if (!coupon) {
@@ -162,6 +198,23 @@ class CartService {
         { model: Coupon, as: 'coupon' }
       ]
     });
+  }
+
+  /**
+   * JSON-safe cart with subtotal, discount, total (frontend expects these fields).
+   */
+  serializeCartForApi(cart) {
+    if (!cart) return cart;
+    const plain = typeof cart.toJSON === 'function' ? cart.toJSON() : { ...cart };
+    const subtotal = computeSubtotalFromPlainCart(plain);
+    const discount =
+      plain.coupon && plain.coupon_id ? computeDiscountFromCoupon(plain.coupon, subtotal) : 0;
+    return {
+      ...plain,
+      subtotal,
+      discount,
+      total: Math.max(0, subtotal - discount),
+    };
   }
 
   async clearCart(cartId) {

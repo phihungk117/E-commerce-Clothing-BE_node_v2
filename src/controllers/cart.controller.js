@@ -2,7 +2,7 @@ const cartService = require('../services/cart.service');
 const { v4: uuidv4 } = require('uuid');
 
 function buildCartResponse(userId, cart) {
-  const response = { cart };
+  const response = { cart: cartService.serializeCartForApi(cart) };
   if (!userId && cart?.session_id) {
     response.session_id = cart.session_id;
   }
@@ -119,7 +119,7 @@ class CartController {
       
       const mergedCart = await cartService.mergeCarts(guest_session_id, userId);
       
-      res.status(200).json({ cart: mergedCart });
+      res.status(200).json({ cart: cartService.serializeCartForApi(mergedCart) });
     } catch (error) {
       next(error);
     }
