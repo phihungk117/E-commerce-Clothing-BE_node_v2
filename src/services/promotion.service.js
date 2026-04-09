@@ -21,12 +21,16 @@ const getActivePromotions = async () => {
  * Get all promotions (admin)
  */
 const getAllPromotions = async (query) => {
-    const { page = 1, limit = 10, is_active } = query;
+    const { page = 1, limit = 10, is_active, q } = query;
     const offset = (page - 1) * limit;
 
     const where = {};
     if (is_active !== undefined) {
         where.is_active = is_active === 'true';
+    }
+    const search = q !== undefined && String(q).trim() !== '' ? String(q).trim() : '';
+    if (search) {
+        where.name = { [Op.like]: `%${search}%` };
     }
 
     const { count, rows } = await Promotion.findAndCountAll({

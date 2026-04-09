@@ -8,9 +8,11 @@ const {
     Size,
     Inventory,
     CartItem,
+    Promotion,
     sequelize,
 } = require('../models');
 const { Op } = require('sequelize');
+const { attachProductPromotionalPricing } = require('../utils/promotionPricing.util');
 
 /** Nhóm ảnh theo color_id; ảnh không gắn màu (null) vào bucket `default`. */
 function buildImagesByColor(images) {
@@ -87,7 +89,24 @@ function enrichProductPayload(product) {
     json.images_by_color = buildImagesByColor(json.images);
     json.colors = uniqueColorsFromVariants(json.variants);
     mergeVariantCoverImages(json);
+    attachProductPromotionalPricing(json);
     return json;
+}
+
+/** Promotions đang hiệu lực (theo giờ request), join optional để SP không có KM vẫn trả về. */
+function activePromotionsInclude(now) {
+    return {
+        model: Promotion,
+        as: 'promotions',
+        required: false,
+        through: { attributes: [] },
+        attributes: ['promotion_id', 'name', 'discount_type', 'discount_value', 'start_date', 'end_date'],
+        where: {
+            is_active: true,
+            start_date: { [Op.lte]: now },
+            end_date: { [Op.gte]: now },
+        },
+    };
 }
 
 const imageInclude = {
@@ -204,6 +223,7 @@ const getProducts = async (query) => {
         variantIncludeQuery.required = true;
     }
 
+    const now = new Date();
     const { count, rows } = await Product.findAndCountAll({
         where,
         limit: parseInt(limit, 10),
@@ -222,6 +242,7 @@ const getProducts = async (query) => {
             },
             imageInclude,
             variantIncludeQuery,
+            activePromotionsInclude(now),
         ],
         distinct: true,
     });
@@ -258,6 +279,7 @@ const getProducts = async (query) => {
  */
 const getProductById = async (id, query = {}) => {
     const { color_id: filterColorId } = query;
+    const now = new Date();
 
     const product = await Product.findByPk(id, {
         include: [
@@ -273,6 +295,7 @@ const getProductById = async (id, query = {}) => {
             },
             imageInclude,
             variantInclude,
+            activePromotionsInclude(now),
         ],
     });
 

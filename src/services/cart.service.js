@@ -1,14 +1,9 @@
 const { Cart, CartItem, ProductVariant, Product, ProductImage, Coupon } = require('../models');
 const { v4: uuidv4 } = require('uuid');
-
-function computeSubtotalFromPlainCart(plain) {
-  const items = plain.items || [];
-  return items.reduce((sum, item) => {
-    const price = parseFloat(item.variant?.price ?? 0);
-    const qty = parseInt(item.quantity ?? 0, 10);
-    return sum + price * qty;
-  }, 0);
-}
+const {
+  bestUnitPriceAfterPromotions,
+  loadPromotionRulesByProductIds,
+} = require('../utils/promotionPricing.util');
 
 /** Match cart/checkout rules: active, dates, min order, percentage vs fixed_amount, max cap */
 function computeDiscountFromCoupon(coupon, subtotal) {
@@ -201,19 +196,45 @@ class CartService {
   }
 
   /**
-   * JSON-safe cart with subtotal, discount, total (frontend expects these fields).
+   * JSON-safe cart: original_subtotal, promotion_discount, subtotal after promos, coupon, total.
    */
-  serializeCartForApi(cart) {
+  async serializeCartForApi(cart) {
     if (!cart) return cart;
     const plain = typeof cart.toJSON === 'function' ? cart.toJSON() : { ...cart };
-    const subtotal = computeSubtotalFromPlainCart(plain);
-    const discount =
-      plain.coupon && plain.coupon_id ? computeDiscountFromCoupon(plain.coupon, subtotal) : 0;
+    const items = plain.items || [];
+
+    const productIds = [...new Set(items.map((i) => i.variant?.product?.product_id).filter(Boolean))];
+    const promoMap = await loadPromotionRulesByProductIds(productIds);
+
+    let originalSubtotal = 0;
+    let saleSubtotal = 0;
+    const itemsWithPromo = items.map((item) => {
+      const price = parseFloat(item.variant?.price ?? 0);
+      const qty = parseInt(item.quantity ?? 0, 10);
+      const pid = item.variant?.product?.product_id;
+      const proms = promoMap.get(pid) || [];
+      const unitSale = bestUnitPriceAfterPromotions(price, proms);
+      originalSubtotal += price * qty;
+      saleSubtotal += unitSale * qty;
+      return {
+        ...item,
+        list_unit_price: price,
+        effective_unit_price: unitSale,
+      };
+    });
+
+    const promotionDiscount = Math.max(0, originalSubtotal - saleSubtotal);
+    const couponDiscount =
+      plain.coupon && plain.coupon_id ? computeDiscountFromCoupon(plain.coupon, saleSubtotal) : 0;
+
     return {
       ...plain,
-      subtotal,
-      discount,
-      total: Math.max(0, subtotal - discount),
+      items: itemsWithPromo,
+      original_subtotal: originalSubtotal,
+      subtotal: saleSubtotal,
+      promotion_discount: promotionDiscount,
+      discount: couponDiscount,
+      total: Math.max(0, saleSubtotal - couponDiscount),
     };
   }
 

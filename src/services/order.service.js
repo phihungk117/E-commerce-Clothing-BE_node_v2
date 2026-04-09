@@ -1,6 +1,10 @@
 const { Order, OrderItem, Cart, CartItem, ProductVariant, Product, ProductImage, Size, Color, Payment, User, Coupon, CouponUsage, Inventory, StockMovement, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const shippingService = require('./shipping.service');
+const {
+  bestUnitPriceAfterPromotions,
+  loadPromotionRulesByProductIds,
+} = require('../utils/promotionPricing.util');
 
 class OrderService {
   generateOrderCode() {
@@ -35,13 +39,21 @@ class OrderService {
         throw new Error('Cart is empty');
       }
 
+      const productIdsForPromo = [
+        ...new Set(cart.items.map((i) => i.variant?.product?.product_id).filter(Boolean)),
+      ];
+      const promoMap = await loadPromotionRulesByProductIds(productIdsForPromo, { transaction });
+
       let subtotal = 0;
       const orderItems = [];
 
       for (const item of cart.items) {
         const variant = item.variant;
         const product = variant.product;
-        const itemTotal = parseFloat(variant.price) * item.quantity;
+        const listUnit = parseFloat(variant.price);
+        const proms = promoMap.get(product.product_id) || [];
+        const effectiveUnit = bestUnitPriceAfterPromotions(listUnit, proms);
+        const itemTotal = effectiveUnit * item.quantity;
         subtotal += itemTotal;
 
         orderItems.push({
@@ -49,7 +61,7 @@ class OrderService {
           product_name: product.name,
           sku: variant.sku,
           quantity: item.quantity,
-          unit_price: variant.price,
+          unit_price: effectiveUnit,
           total_price: itemTotal
         });
 
