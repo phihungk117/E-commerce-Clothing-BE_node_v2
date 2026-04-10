@@ -1,4 +1,29 @@
+const cloudinary = require('cloudinary').v2;
+const appConfig = require('../config/config');
 const { ProductImage, Product, Color } = require('../models');
+
+function configureCloudinary() {
+    cloudinary.config({
+        cloud_name: appConfig.cloudinary.cloud_name,
+        api_key: appConfig.cloudinary.api_key,
+        api_secret: appConfig.cloudinary.api_secret
+    });
+}
+
+/**
+ * Upload ảnh sản phẩm lên Cloudinary (thư mục ecommerce_products).
+ * @param {string} source - Đường dẫn file local, data URI, hoặc URL ảnh công khai
+ * @returns {Promise<{ secure_url: string, public_id: string }>}
+ */
+const uploadProductImageToCloudinary = async (source) => {
+    configureCloudinary();
+    const result = await cloudinary.uploader.upload(source, {
+        folder: 'ecommerce_products',
+        resource_type: 'image',
+        transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
+    });
+    return { secure_url: result.secure_url, public_id: result.public_id };
+};
 
 /**
  * Get all images of a product
@@ -180,5 +205,6 @@ module.exports = {
     updateImage,
     deleteImage,
     setThumbnail,
-    reorderImages
+    reorderImages,
+    uploadProductImageToCloudinary
 };

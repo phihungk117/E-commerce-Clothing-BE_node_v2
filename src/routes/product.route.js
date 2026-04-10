@@ -1,5 +1,6 @@
 const express = require('express');
 const { verifyToken, authorize } = require('../middlewares/auth.middleware');
+const { uploadProductImage } = require('../middlewares/upload.middleware');
 const productController = require('../controllers/product.controller');
 const productVariantController = require('../controllers/productVariant.controller');
 const productImageController = require('../controllers/productImage.controller');
@@ -33,7 +34,13 @@ router.patch('/:productId/variants/:id/stock', verifyToken, authorize('ADMIN', '
 router.get('/:productId/images', productImageController.getImagesByProduct);
 
 // Protected routes (Admin/Staff)
-router.post('/:productId/images', verifyToken, authorize('ADMIN', 'STAFF'), productImageController.createImage);
+router.post(
+    '/:productId/images',
+    verifyToken,
+    authorize('ADMIN', 'STAFF'),
+    uploadProductImage.single('image'),
+    productImageController.createImage
+);
 router.patch('/:productId/images/:id', verifyToken, authorize('ADMIN', 'STAFF'), productImageController.updateImage);
 router.delete('/:productId/images/:id', verifyToken, authorize('ADMIN', 'STAFF'), productImageController.deleteImage);
 router.patch('/:productId/images/:id/thumbnail', verifyToken, authorize('ADMIN', 'STAFF'), productImageController.setThumbnail);
